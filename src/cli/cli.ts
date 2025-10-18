@@ -1,22 +1,25 @@
 #!/usr/bin/env node
-import commander from 'commander';
+import commander, { Option } from 'commander';
 
 import { OptionModel } from './models';
 import {
     ErrorTypes,
     FatalErrorModel,
     IRulesConfig,
-    ReactIntlLint,
+    NgxTranslateLint,
     ResultCliModel,
     ResultModel,
     StatusCodes,
-    ToggleRule
+    ToggleRule,
+    parseJsonFile,
+    getPackageJsonPath, IFetch,
+    config,
 } from "./../core";
 
-import { config } from './../core/config';
 import { OptionsLongNames, OptionsShortNames } from './enums';
 import chalk from 'chalk';
-import { parseJsonFile, getPackageJsonPath } from './utils';
+import * as i18nextRegExp from '../react-intl/regex';
+import path from 'node:path';
 
 const name: string = 'react-intl-lint';
 
@@ -29,39 +32,40 @@ const docs: any = {
 
 Examples:
 
-    $ ${name} -p ${config.defaultValues.projectPath} -l ${config.defaultValues.languagesPath}
-    $ ${name} -p ${config.defaultValues.projectPath} -z ${ErrorTypes.disable} -v ${ErrorTypes.error}
-    $ ${name} -p ${config.defaultValues.projectPath} -i ./src/assets/i18n/EN-us.json, ./src/app/app.*.{json}
+    $ ${name} -p ${config.defaultValues.project} -l ${config.defaultValues.languages}
+    $ ${name} -p ${config.defaultValues.project} -z ${ErrorTypes.disable} -v ${ErrorTypes.error}
+    $ ${name} -p ${config.defaultValues.project} -i ./src/assets/i18n/EN-us.json, ./src/app/app.*.{json}
+    $ ${name} -p ${config.defaultValues.project} -l https://8.8.8.8/locales/EN-eu.json
 
 `
 };
 
 class Cli {
-    private cliClient: commander.CommanderStatic = commander;
+    // tslint:disable-next-line:no-any
+    private cliClient: any = commander.program;
     private cliOptions: OptionModel[] = [];
 
     constructor(options: OptionModel[]) {
         this.cliOptions = options;
     }
 
-    public static run(options: OptionModel[]): void {
+    public static async run(options: OptionModel[]): Promise<void> {
         const cli: Cli = new Cli(options);
         cli.init();
         cli.parse();
-        cli.runCli();
+        await cli.runCli();
     }
 
     public init(options: OptionModel[] = this.cliOptions): void {
         options.forEach((option: OptionModel) => {
             const optionFlag: string = option.getFlag();
             const optionDescription: string = option.getDescription();
-            const optionDefaultValue: string | ErrorTypes | undefined = option.default;
-            this.cliClient.option(optionFlag, optionDescription, optionDefaultValue);
+            this.cliClient.addOption(new Option(optionFlag, optionDescription));
         });
 
         // tslint:disable-next-line:no-any
         const packageJson: any = parseJsonFile(getPackageJsonPath());
-        this.cliClient.version(packageJson.version);
+        this.cliClient.version(packageJson.version, '-v, --version', `Print current version of ${name}`);
 
         this.cliClient
             .name(docs.name)
@@ -73,63 +77,47 @@ class Cli {
             });
     }
 
-    public runCli(): void {
+    public async runCli(): Promise<void> {
         try {
-            // tslint:disable-next-line:no-any
-            const options: any = this.cliClient.config ? parseJsonFile(this.cliClient.config) : this.cliClient;
-            const projectPath: string = options.project;
-            const languagePath: string = options.languages;
-            const tsConfigPath: string = options.tsConfigPath;
+            // Options
+            const fileOptions: any = await this.getConfig(this.cliClient.opts().config);
+            const commandOptions: any = this.cliClient.opts();
+            const defaultOptions: any = config.defaultValues;
 
-            let deepSearch: ToggleRule;
-            let optionIgnore: string;
-            let optionMisprint: ErrorTypes;
-            let optionEmptyKey: ErrorTypes;
-            let optionViewsRule: ErrorTypes;
-            let optionMaxWarning: number ;
-            let optionZombiesRule: ErrorTypes;
-            let optionIgnoredKeys: string[];
-            let optionMisprintCoefficient: number ;
-            let optionIgnoredMisprintKeys: string[];
-            let optionCustomRegExpToFindKeys: string[] | RegExp[];
+            const resultOptions: any = {
+               ...defaultOptions,
+              ...defaultOptions.rules,
 
-            if (!!options.rules) {
-                 deepSearch = options.rules.deepSearch;
-                 optionIgnore = options.rules.ignore;
-                 optionMisprint = options.rules.misprintKeys;
-                 optionEmptyKey = options.rules.emptyKeys;
-                 optionViewsRule =  options.rules.keysOnViews;
-                 optionMaxWarning =  options.rules.maxWarning;
-                 optionZombiesRule = options.rules.zombieKeys;
-                 optionIgnoredKeys =  options.rules.ignoredKeys;
-                 optionMisprintCoefficient = options.rules.misprintCoefficient;
-                 optionIgnoredMisprintKeys =  options.rules.ignoredMisprintKeys;
-                 optionCustomRegExpToFindKeys = options.rules.customRegExpToFindKeys;
-            } else {
-                 deepSearch = options.deepSearch;
-                 optionIgnore = options.ignore;
-                 optionMisprint = options.misprintKeys;
-                 optionEmptyKey = options.emptyKeys;
-                 optionViewsRule = options.keysOnViews;
-                 optionMaxWarning =  options.maxWarning;
-                 optionZombiesRule = options.zombieKeys;
-                 optionIgnoredKeys = options.ignoredKeys;
-                 optionMisprintCoefficient = options.misprintCoefficient ;
-                 optionIgnoredMisprintKeys = options.ignoredMisprintKeys ;
-                 optionCustomRegExpToFindKeys = options.customRegExpToFindKeys;
-            }
+              ...fileOptions,
+              ...fileOptions.rules,
 
+              ...commandOptions
+            };
 
-            this.printCurrentVersion();
+            const projectPath: string = resultOptions.project;
+            const languagePath: string = resultOptions.languages;
+            const fixZombiesKeys: boolean = resultOptions.fixZombiesKeys;
+            const deepSearch: ToggleRule = resultOptions.deepSearch;
+            const optionIgnore: string = resultOptions.ignore;
+            const optionMisprint: ErrorTypes = resultOptions.misprintKeys;
+            const optionEmptyKey: ErrorTypes = resultOptions.emptyKeys;
+            const optionViewsRule: ErrorTypes = resultOptions.keysOnViews;
+            const optionMaxWarning: number = resultOptions.maxWarning;
+            const optionZombiesRule: ErrorTypes = resultOptions.zombieKeys;
+            const optionIgnoredKeys: string[] = resultOptions.ignoredKeys;
+            const optionMisprintCoefficient: number = resultOptions.misprintCoefficient;
+            const optionIgnoredMisprintKeys: string[] = resultOptions.ignoredMisprintKeys;
+            const optionCustomRegExpToFindKeys: string[] | RegExp[] = resultOptions.customRegExpToFindKeys;
+            const fetchSettings: IFetch = resultOptions.fetch;
 
-            if (options.project && options.languages) {
-                this.runLint(
+            if (projectPath && languagePath) {
+                await this.runLint(
                     projectPath, languagePath, optionZombiesRule,
                     optionViewsRule, optionIgnore, optionMaxWarning, optionMisprint, optionEmptyKey, deepSearch,
-                    optionMisprintCoefficient, optionIgnoredKeys, optionIgnoredMisprintKeys, optionCustomRegExpToFindKeys, tsConfigPath
+                    optionMisprintCoefficient, optionIgnoredKeys, optionIgnoredMisprintKeys, optionCustomRegExpToFindKeys,fixZombiesKeys, fetchSettings
                 );
             } else {
-                const cliHasError: boolean = this.validate();
+                const cliHasError: boolean = this.validate(resultOptions);
                 if (cliHasError) {
                     process.exit(StatusCodes.crash);
                 } else {
@@ -145,25 +133,46 @@ class Cli {
         }
     }
 
+    // tslint:disable-next-line:no-any
+    public async getConfig(configPath: string): Promise<any> {
+        if (!configPath) {
+            return {};
+        }
+
+        const extension: string = path.extname(configPath);
+
+        if (extension === '.json') {
+            return parseJsonFile(configPath);
+        }
+
+        if (extension === '.js') {
+            const result: any =  await import(configPath);
+            return result.default;
+        }
+    }
+
     public parse(): void {
+        this.printCurrentVersion();
         this.cliClient.parse(process.argv);
     }
 
-    private validate(): boolean {
-        const requiredOptions: OptionModel[] = this.cliOptions.filter((option: OptionModel) => option.required);
-        const missingRequiredOption: boolean = requiredOptions.reduce((accum: boolean, option: OptionModel) => {
-            if (!this.cliClient[String(option.longName)]) {
-                accum = false;
-                // tslint:disable-next-line: no-console
-                console.error(`Missing required argument: ${option.getFlag()}`);
-            }
-            return accum;
-        }, false);
+    private validate(options: any): boolean {
+        if (!options.project) {
+            // tslint:disable-next-line: no-console
+            console.error(`Missing required argument: --project`);
+            return true;
+        }
 
-        return missingRequiredOption;
+        if (!options.languages) {
+            // tslint:disable-next-line: no-console
+            console.error(`Missing required argument: --languages`);
+            return true;
+        }
+
+        return false;
     }
 
-    public runLint(
+    public  async runLint(
         project: string,
         languages: string,
         zombies?: ErrorTypes,
@@ -177,8 +186,9 @@ class Cli {
         ignoredKeys: string[] = [],
         ignoredMisprintKeys: string[] = [],
         customRegExpToFindKeys: string[] | RegExp[] = [],
-        tsConfigPath?: string,
-    ): void {
+        fixZombiesKeys?: boolean,
+        fetchSettings?: IFetch
+    ): Promise<void> {
             const errorConfig: IRulesConfig = {
                 misprintKeys: misprint || ErrorTypes.disable,
                 deepSearch: deepSearch || ToggleRule.disable,
@@ -191,8 +201,8 @@ class Cli {
                 misprintCoefficient,
                 customRegExpToFindKeys,
             };
-            const validationModel: ReactIntlLint = new ReactIntlLint(project, languages, ignore, errorConfig, tsConfigPath);
-            const resultCliModel: ResultCliModel = validationModel.lint(maxWarning);
+            const validationModel: NgxTranslateLint = new NgxTranslateLint(project, languages, ignore, errorConfig, fixZombiesKeys, fetchSettings, i18nextRegExp.reactIntl);
+            const resultCliModel: ResultCliModel = await validationModel.lint(maxWarning);
             const resultModel: ResultModel = resultCliModel.getResultModel();
             resultModel.printResult();
             resultModel.printSummery();

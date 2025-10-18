@@ -1,18 +1,18 @@
 import { ArgumentTypes } from 'conventional-cli';
 
-import { OptionModel } from './../models';
-import { config, ErrorTypes, ToggleRule } from './../../core';
+import { OptionModel } from '../models';
+import { config, ErrorTypes, ToggleRule } from 'ngx-translate-lint';
 import { OptionsLongNames, OptionsPath, OptionsShortNames } from './../enums';
 
 const cliOptions: OptionModel[] = [
     new OptionModel({
         shortName: OptionsShortNames.project,
         longName: OptionsLongNames.project,
-        required: true,
+        required: false,
         type: ArgumentTypes.glob,
         description: `The path to project folder`,
         additionalDescription: ``,
-        default: config.defaultValues.projectPath,
+        default: config.defaultValues.project,
         values: [
             OptionsPath.relative,
             OptionsPath.absolute
@@ -21,14 +21,15 @@ const cliOptions: OptionModel[] = [
     new OptionModel({
         shortName: OptionsShortNames.languages,
         longName: OptionsLongNames.languages,
-        required: true,
+        required: false,
         type: ArgumentTypes.glob,
         description: `The path to languages folder`,
         additionalDescription: ``,
-        default: config.defaultValues.languagesPath,
+        default: config.defaultValues.languages,
         values: [
             OptionsPath.relative,
-            OptionsPath.absolute
+            OptionsPath.absolute,
+            OptionsPath.url
         ]
     }),
     new OptionModel({
@@ -50,7 +51,7 @@ const cliOptions: OptionModel[] = [
         longName: OptionsLongNames.zombieKeys,
         required: false,
         type: ArgumentTypes.enum,
-        description: `Described how to handle the error of zombies keys`,
+        description: `Described how to handle the error of zombies keys. Zombie keys are keys that doesn't exist on any languages file but exist on project, or exist languages but doesn't exist on project`,
         additionalDescription: ``,
         default: ErrorTypes.warning,
         values: [
@@ -65,7 +66,7 @@ const cliOptions: OptionModel[] = [
         longName: OptionsLongNames.emptyKeys,
         required: false,
         type: ArgumentTypes.enum,
-        description: `Described how to handle empty value on translate keys`,
+        description: `Described how to handle empty value on translate keys. Empty keys are keys that doesn't have any value on languages files`,
         additionalDescription: ``,
         default: ErrorTypes.warning,
         values: [
@@ -139,7 +140,7 @@ const cliOptions: OptionModel[] = [
         shortName: OptionsShortNames.config,
         required: false,
         type: ArgumentTypes.path,
-        description: `Path to config`,
+        description: `Path to config via JSON or JS file`,
         additionalDescription: ``,
         values: [
             OptionsPath.relative,
@@ -147,13 +148,25 @@ const cliOptions: OptionModel[] = [
         ]
     }),
     new OptionModel({
+        longName: OptionsLongNames.fixZombiesKeys,
+        shortName: OptionsShortNames.fixZombiesKeys,
+        required: false,
+        type: ArgumentTypes.boolean,
+        description: `Auto fix zombies keys on languages files`,
+        additionalDescription: ``,
+        default: config.defaultValues.fixZombiesKeys?.toString() || 'false',
+    }),
+    /*
+    new OptionModel({
         longName: OptionsLongNames.version,
         shortName: OptionsShortNames.version,
         required: false,
-        description: 'Print current version of react-intl-lint',
+        description: 'Print current version of ngx-translate-lint',
         type: ArgumentTypes.undefined,
         additionalDescription: '',
     }),
+
+     */
 ];
 
 export  { cliOptions };

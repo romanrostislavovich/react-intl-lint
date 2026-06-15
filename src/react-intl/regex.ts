@@ -1,5 +1,7 @@
-const mainRegExp: string = "<[\\s|\\w|\\n]*FormattedMessage[\\s|\\w|\\n|.|=|'|\"]{0,}[^\\w]id=[\"']{1,2}(.*)['\"]{1,2}[^>]*>";
+const formattedMessageRegExp: string = `(?<=<(?:FormattedMessage|FormattedHTMLMessage)[^>]*?\\bid=(?:\\{?['"]))([^'"]+)(?=['"]\\}?)`;
+const formatMessageRegExp: string = `(?<=(?<![A-Za-z0-9])formatMessage\\s*\\(\\s*\\{[^}]*?\\bid\\s*:\\s*['"])([^'"]+)(?=['"])`;
 
 export const reactIntl: string[] = [
-    mainRegExp
+    formattedMessageRegExp,
+    formatMessageRegExp
 ];

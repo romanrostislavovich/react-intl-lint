@@ -12,15 +12,13 @@ import {
     StatusCodes,
     ToggleRule,
     parseJsonFile,
-    getPackageJsonPath, IFetch,
-    config,
+    getPackageJsonPath, IFetch, PathUtils,
 } from "./../core";
 
+import { config } from './../core';
 import { OptionsLongNames, OptionsShortNames } from './enums';
 import chalk from 'chalk';
-import * as i18nextRegExp from '../react-intl/regex';
-import path from 'node:path';
-import { PathUtils } from 'ngx-translate-lint';
+import path from 'path';
 
 const name: string = 'react-intl-lint';
 
@@ -61,9 +59,12 @@ class Cli {
         options.forEach((option: OptionModel) => {
             const optionFlag: string = option.getFlag();
             const optionDescription: string = option.getDescription();
-            this.cliClient.addOption(new Option(optionFlag, optionDescription));
+            const optionDefaultValue: string | ErrorTypes | undefined = option.default;
+            const commandOption: Option = new Option(optionFlag, optionDescription).default(optionDefaultValue);
+            this.cliClient.addOption(commandOption);
         });
 
+        this.cliClient.allowExcessArguments(true);
         // tslint:disable-next-line:no-any
         const packageJson: any = parseJsonFile(getPackageJsonPath());
         this.cliClient.version(packageJson.version, '-v, --version', `Print current version of ${name}`);
@@ -86,13 +87,13 @@ class Cli {
             const defaultOptions: any = config.defaultValues;
 
             const resultOptions: any = {
-               ...defaultOptions,
-              ...defaultOptions.rules,
+                ...defaultOptions,
+                ...defaultOptions?.rules,
 
-              ...fileOptions,
-              ...fileOptions.rules,
+                ...commandOptions,
 
-              ...commandOptions
+                ...fileOptions,
+                ...fileOptions?.rules,
             };
 
             const projectPath: string = resultOptions.project;
@@ -155,6 +156,7 @@ class Cli {
 
     public parse(): void {
         this.printCurrentVersion();
+
         this.cliClient.parse(process.argv);
     }
 
@@ -191,29 +193,29 @@ class Cli {
         fixZombiesKeys?: boolean,
         fetchSettings?: IFetch
     ): Promise<void> {
-            const errorConfig: IRulesConfig = {
-                misprintKeys: misprint || ErrorTypes.disable,
-                deepSearch: deepSearch || ToggleRule.disable,
-                zombieKeys: zombies || ErrorTypes.warning,
-                emptyKeys: emptyKeys || ErrorTypes.warning,
-                keysOnViews: views || ErrorTypes.error,
-                maxWarning,
-                ignoredKeys,
-                ignoredMisprintKeys,
-                misprintCoefficient,
-                customRegExpToFindKeys,
-            };
-            const validationModel: NgxTranslateLint = new NgxTranslateLint(project, languages, ignore, errorConfig, fixZombiesKeys, fetchSettings, i18nextRegExp.reactIntl);
-            const resultCliModel: ResultCliModel = await validationModel.lint(maxWarning);
-            const resultModel: ResultModel = resultCliModel.getResultModel();
-            resultModel.printResult();
-            resultModel.printSummery();
+        const errorConfig: IRulesConfig = {
+            misprintKeys: misprint || ErrorTypes.disable,
+            deepSearch: deepSearch || ToggleRule.disable,
+            zombieKeys: zombies || ErrorTypes.warning,
+            emptyKeys: emptyKeys || ErrorTypes.warning,
+            keysOnViews: views || ErrorTypes.error,
+            maxWarning,
+            ignoredKeys,
+            ignoredMisprintKeys,
+            misprintCoefficient,
+            customRegExpToFindKeys,
+        };
+        const validationModel: NgxTranslateLint = new NgxTranslateLint(project, languages, ignore, errorConfig, fixZombiesKeys, fetchSettings);
+        const resultCliModel: ResultCliModel = await validationModel.lint(maxWarning);
+        const resultModel: ResultModel = resultCliModel.getResultModel();
+        resultModel.printResult();
+        resultModel.printSummery();
 
-            process.exitCode = resultCliModel.exitCode();
+        process.exitCode = resultCliModel.exitCode();
 
-            if (resultModel.hasError) {
-                throw new FatalErrorModel(chalk.red(resultModel.message));
-            }
+        if (resultModel.hasError) {
+            throw new FatalErrorModel(chalk.red(resultModel.message));
+        }
     }
 
     private printCurrentVersion(): void {

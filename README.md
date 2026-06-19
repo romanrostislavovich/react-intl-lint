@@ -9,7 +9,11 @@
 > for `react-i18next` use [`react-i18next-lint`](https://www.npmjs.com/package/react-i18next-lint)
 > 
 > for `ngx-translate` use [`ngx-translate-lint`](https://www.npmjs.com/package/ngx-translate-lint) 
-
+>
+> for all popular libraries use [`translate-lint`](https://github.com/romanrostislavovich/translate-lint)
+>
+> On future current package will be merged with [`translate-lint`](https://github.com/romanrostislavovich/translate-lint)
+>
 
 ## Table of Contents
 
